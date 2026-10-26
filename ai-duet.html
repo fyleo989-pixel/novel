@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>雙聲對談室</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600&display=swap">
+<style>
+/* 版面：單欄對話流，頂部標題列，底部固定輸入區；兩位 AI 以色彩與左右位置區分，使用者居中 */
+:root{
+  --bg:#f5f6f4; --panel:#ffffff; --fg:#1d2321; --muted:#68716d; --line:#dfe3e0;
+  --claude:#b8612f; --claude-soft:#f6e9df;
+  --gpt:#1e7f6e; --gpt-soft:#e0f0ec;
+  --me:#3b4a8c; --me-soft:#e6e9f6;
+  --danger:#b3322b;
+  --font-body:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+  --font-display:"Noto Serif TC","Songti TC",serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#141817; --panel:#1c211f; --fg:#e7ebe9; --muted:#97a19c; --line:#2d3431;
+  --claude:#e39062; --claude-soft:#33251c;
+  --gpt:#4fc2ab; --gpt-soft:#173029;
+  --me:#9eaaf0; --me-soft:#232842;
+  --danger:#f07a72; color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.65 var(--font-body);display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:12px max(16px,env(safe-area-inset-left,0px)) 12px max(16px,env(safe-area-inset-right,0px));padding-top:max(12px,env(safe-area-inset-top,0px));border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font:600 19px/1.2 var(--font-display);margin:0;flex:1;letter-spacing:.02em}
+header h1 .c{color:var(--claude)} header h1 .g{color:var(--gpt)}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:7px 12px}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--me);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+.icon-btn{padding:7px 10px;font-size:14px}
+main{flex:1;overflow-y:auto;padding:20px max(16px,env(safe-area-inset-left,0px)) 20px max(16px,env(safe-area-inset-right,0px))}
+.thread{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.msg{display:flex;flex-direction:column;max-width:86%;min-width:0}
+.msg .who{font-size:12px;font-weight:700;letter-spacing:.06em;margin-bottom:3px}
+.msg .bubble{padding:10px 14px;border-radius:14px;white-space:pre-wrap;word-break:break-word}
+.msg.claude{align-self:flex-start}
+.msg.claude .who{color:var(--claude)}
+.msg.claude .bubble{background:var(--claude-soft);border-top-left-radius:4px}
+.msg.gpt{align-self:flex-end;text-align:left}
+.msg.gpt .who{color:var(--gpt);text-align:right}
+.msg.gpt .bubble{background:var(--gpt-soft);border-top-right-radius:4px}
+.msg.user{align-self:center;max-width:92%}
+.msg.user .who{color:var(--me);text-align:center}
+.msg.user .bubble{background:var(--me-soft);border-radius:10px}
+.msg.err .bubble{background:transparent;border:1px dashed var(--danger);color:var(--danger);font-size:13px}
+.typing .bubble{color:var(--muted)}
+.typing .bubble::after{content:"…";animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.2}}
+@media (prefers-reduced-motion:reduce){.typing .bubble::after{animation:none}}
+.empty{max-width:520px;margin:6vh auto 0;text-align:center;color:var(--muted)}
+.empty h2{font:600 22px/1.3 var(--font-display);color:var(--fg);margin:0 0 8px;text-wrap:balance}
+.empty .ex{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+.empty .ex button{font-size:13px;border-radius:999px}
+footer{border-top:1px solid var(--line);background:var(--panel);padding:10px max(16px,env(safe-area-inset-left,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-right,0px))}
+.composer{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+textarea#input{flex:1;min-width:0;resize:none;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);max-height:160px}
+.send{background:var(--me);color:#fff;border-color:var(--me);padding:10px 16px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted)}
+.controls label{display:flex;align-items:center;gap:6px}
+.controls select,.controls input[type=number]{font:inherit;padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.controls input[type=number]{width:56px}
+.btn-claude{color:var(--claude);border-color:var(--claude)}
+.btn-gpt{color:var(--gpt);border-color:var(--gpt)}
+.btn-stop{color:var(--danger);border-color:var(--danger)}
+.spacer{flex:1}
+/* 設定面板 */
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--fg);padding:0;width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 40px)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+.dlg{padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+.dlg h3{margin:0;font:600 18px var(--font-display)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:13px;font-weight:500}
+.field small{color:var(--muted);font-size:12px}
+.field input,.field textarea{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);width:100%}
+.field textarea{min-height:70px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.grid2{grid-template-columns:1fr}}
+.sec-title{font-size:12px;font-weight:700;letter-spacing:.08em;margin-top:4px}
+.sec-title.c{color:var(--claude)} .sec-title.g{color:var(--gpt)}
+.note{font-size:12px;color:var(--muted);background:var(--bg);padding:10px;border-radius:8px}
+.dlg-actions{display:flex;gap:8px;justify-content:flex-end}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="c">Claude</span> × <span class="g">GPT</span> 對談室</h1>
+  <button class="icon-btn" id="exportBtn" title="匯出對話">匯出</button>
+  <button class="icon-btn" id="clearBtn" title="清空對話">清空</button>
+  <button class="icon-btn" id="settingsBtn">設定</button>
+</header>
+
+<main id="scroller">
+  <div class="thread" id="thread"></div>
+  <div class="empty" id="empty">
+    <h2>丟一個話題，讓兩個 AI 聊起來</h2>
+    <div>先到「設定」填入兩邊的 API 金鑰。你可以隨時插話，或按按鈕指定誰發言。</div>
+    <div class="ex">
+      <button data-ex="你們兩個各自覺得，AI 最不擅長的事情是什麼？互相反駁看看。">AI 最不擅長什麼</button>
+      <button data-ex="一起幫我想一個開在台北的小店點子，輪流補強對方的想法。">一起想小店點子</button>
+      <button data-ex="用接龍方式寫一篇短篇奇幻小說的開頭，每人一段。">小說接龍</button>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="composer">
+    <div class="row">
+      <textarea id="input" rows="1" placeholder="輸入話題或插話…（Enter 送出，Shift+Enter 換行）"></textarea>
+      <button class="send" id="sendBtn">送出</button>
+    </div>
+    <div class="controls">
+      <label for="autoTurns">自動對談</label>
+      <input type="number" id="autoTurns" min="0" max="30" value="6">
+      <span>則</span>
+      <label for="starter">先發言</label>
+      <select id="starter"><option value="claude">Claude</option><option value="gpt">GPT</option></select>
+      <span class="spacer"></span>
+      <button class="btn-claude" id="claudeBtn">讓 Claude 說</button>
+      <button class="btn-gpt" id="gptBtn">讓 GPT 說</button>
+      <button class="btn-stop" id="stopBtn" hidden>停止</button>
+    </div>
+  </div>
+</footer>
+
+<dialog id="settings">
+  <form class="dlg" id="settingsForm" method="dialog">
+    <h3>設定</h3>
+    <div class="note">金鑰只存在這台裝置的瀏覽器裡，直接送到 Anthropic 與 OpenAI，不經過其他伺服器。請不要在公用電腦上使用，也不要把填好金鑰的瀏覽器分享給別人。</div>
+
+    <div class="sec-title c">CLAUDE（Anthropic）</div>
+    <div class="field"><label for="claudeKey">API 金鑰</label><input id="claudeKey" type="password" autocomplete="off" placeholder="sk-ant-…"><small>在 console.anthropic.com 建立</small></div>
+    <div class="grid2">
+      <div class="field"><label for="claudeModel">模型</label><input id="claudeModel" placeholder="claude-sonnet-5-5"></div>
+      <div class="field"><label for="claudeName">顯示名稱</label><input id="claudeName" placeholder="Claude"></div>
+    </div>
+
+    <div class="sec-title g">GPT（OpenAI）</div>
+    <div class="field"><label for="gptKey">API 金鑰</label><input id="gptKey" type="password" autocomplete="off" placeholder="sk-…"><small>在 platform.openai.com 建立</small></div>
+    <div class="grid2">
+      <div class="field"><label for="gptModel">模型</label><input id="gptModel" placeholder="gpt-5"></div>
+      <div class="field"><label for="gptName">顯示名稱</label><input id="gptName" placeholder="GPT"></div>
+    </div>
+
+    <div class="sec-title">對話規則（兩邊共用）</div>
+    <div class="field"><label for="rules">補充指示</label><textarea id="rules" placeholder="例如：每次回覆 150 字以內、語氣輕鬆、可以吐槽對方"></textarea><small>會附加在每次請求的系統提示裡。</small></div>
+
+    <div class="dlg-actions">
+      <button type="button" id="cancelSettings">取消</button>
+      <button type="submit" class="send" id="saveSettings">儲存</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const LS = 'ai-duet-v1';
+  const defaults = { claudeKey:'', claudeModel:'claude-sonnet-5-5', claudeName:'Claude', gptKey:'', gptModel:'gpt-5', gptName:'GPT', rules:'每次回覆 150 字以內，像聊天一樣自然。' };
+  let cfg = { ...defaults };
+  try { Object.assign(cfg, JSON.parse(localStorage.getItem(LS + ':cfg') || '{}')); } catch {}
+  let log = [];
+  try { log = JSON.parse(localStorage.getItem(LS + ':log') || '[]'); } catch {}
+
+  const saveCfg = () => { try { localStorage.setItem(LS + ':cfg', JSON.stringify(cfg)); } catch {} };
+  const saveLog = () => { try { localStorage.setItem(LS + ':log', JSON.stringify(log)); } catch {} };
+  const nameOf = who => who === 'claude' ? (cfg.claudeName || 'Claude') : who === 'gpt' ? (cfg.gptName || 'GPT') : '主持人（你）';
+
+  // ---------- 畫面 ----------
+  const thread = $('thread'), scroller = $('scroller');
+  function bubble(who, text, extra) {
+    const m = document.createElement('div');
+    m.className = 'msg ' + who + (extra ? ' ' + extra : '');
+    const w = document.createElement('div'); w.className = 'who';
+    w.textContent = who === 'err' ? '錯誤' : nameOf(who);
+    const b = document.createElement('div'); b.className = 'bubble'; b.textContent = text;
+    m.append(w, b); return m;
+  }
+  function render() {
+    thread.replaceChildren(...log.map(e => bubble(e.who, e.text)));
+    $('empty').hidden = log.length > 0;
+    scrollDown();
+  }
+  const scrollDown = () => requestAnimationFrame(() => scroller.scrollTop = scroller.scrollHeight);
+  function showError(msg) {
+    const el = bubble('err', msg, 'err'); el.querySelector('.who').textContent = '錯誤';
+    thread.append(el); $('empty').hidden = true; scrollDown();
+  }
+
+  // ---------- 組對話內容 ----------
+  function systemFor(me) {
+    const other = me === 'claude' ? 'gpt' : 'claude';
+    return `你是 ${nameOf(me)}，正在和另一個 AI「${nameOf(other)}」以及一位人類主持人進行三方對話。` +
+      `對話紀錄中，別人的發言會以【名字】開頭標示。直接用你自己的話回應，不要在開頭加上自己的名字標籤。` +
+      `請使用繁體中文。主持人的指示優先。` + (cfg.rules ? `\n補充規則：${cfg.rules}` : '');
+  }
+  function messagesFor(me) {
+    const out = [];
+    for (const e of log) {
+      const role = e.who === me ? 'assistant' : 'user';
+      const content = e.who === me ? e.text : `【${nameOf(e.who)}】${e.text}`;
+      const last = out[out.length - 1];
+      if (last && last.role === role) last.content += '\n\n' + content;
+      else out.push({ role, content });
+    }
+    if (!out.length || out[0].role !== 'user') out.unshift({ role: 'user', content: '（對話開始）' });
+    if (out[out.length - 1].role !== 'user') out.push({ role: 'user', content: '（請繼續對話。）' });
+    return out;
+  }
+
+  // ---------- API ----------
+  async function askClaude(signal) {
+    if (!cfg.claudeKey) throw new Error('還沒填 Claude 的 API 金鑰，請到「設定」填入。');
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal,
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': cfg.claudeKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({ model: cfg.claudeModel || defaults.claudeModel, max_tokens: 1500, system: systemFor('claude'), messages: messagesFor('claude') })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Claude 回傳錯誤（${r.status}）：${j?.error?.message || r.statusText}`);
+    return (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
+  }
+  async function askGPT(signal) {
+    if (!cfg.gptKey) throw new Error('還沒填 GPT 的 API 金鑰，請到「設定」填入。');
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST', signal,
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + cfg.gptKey },
+      body: JSON.stringify({ model: cfg.gptModel || defaults.gptModel, messages: [{ role: 'system', content: systemFor('gpt') }, ...messagesFor('gpt')] })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`GPT 回傳錯誤（${r.status}）：${j?.error?.message || r.statusText}`);
+    return (j.choices?.[0]?.message?.content || '').trim();
+  }
+
+  // ---------- 流程 ----------
+  let busy = false, ctl = null, stopFlag = false;
+  function setBusy(b) {
+    busy = b;
+    $('stopBtn').hidden = !b;
+    for (const id of ['claudeBtn', 'gptBtn']) $(id).disabled = b;
+  }
+  async function speak(who) {
+    const t = bubble(who, '思考中', 'typing'); thread.append(t); $('empty').hidden = true; scrollDown();
+    ctl = new AbortController();
+    try {
+      const text = who === 'claude' ? await askClaude(ctl.signal) : await askGPT(ctl.signal);
+      t.remove();
+      if (!text) throw new Error(`${nameOf(who)} 沒有回覆內容。`);
+      log.push({ who, text }); saveLog(); thread.append(bubble(who, text)); scrollDown();
+      return true;
+    } catch (e) {
+      t.remove();
+      if (e.name === 'AbortError') return false;
+      const msg = e instanceof TypeError ? `連不上 ${nameOf(who)}（網路或瀏覽器擋下了請求）。請確認網路，或改用其他瀏覽器開啟這個檔案。` : e.message;
+      showError(msg); return false;
+    }
+  }
+  async function run(first, turns) {
+    if (busy) return;
+    setBusy(true); stopFlag = false;
+    let who = first;
+    for (let i = 0; i < Math.max(1, turns); i++) {
+      if (stopFlag) break;
+      const ok = await speak(who);
+      if (!ok) break;
+      who = who === 'claude' ? 'gpt' : 'claude';
+    }
+    setBusy(false);
+  }
+  function nextSpeaker() {
+    for (let i = log.length - 1; i >= 0; i--) {
+      if (log[i].who === 'claude') return 'gpt';
+      if (log[i].who === 'gpt') return 'claude';
+    }
+    return $('starter').value;
+  }
+  function send() {
+    const text = $('input').value.trim();
+    if (!text || busy) return;
+    log.push({ who: 'user', text }); saveLog();
+    $('input').value = ''; autosize(); render();
+    const n = parseInt($('autoTurns').value, 10) || 0;
+    if (n > 0) run(nextSpeaker(), n);
+  }
+
+  // ---------- 事件 ----------
+  const input = $('input');
+  const autosize = () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px'; };
+  input.addEventListener('input', autosize);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
+  $('sendBtn').onclick = send;
+  $('claudeBtn').onclick = () => run('claude', 1);
+  $('gptBtn').onclick = () => run('gpt', 1);
+  $('stopBtn').onclick = () => { stopFlag = true; ctl?.abort(); };
+  document.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { input.value = b.dataset.ex; autosize(); input.focus(); });
+
+  let clearArmed = false;
+  $('clearBtn').onclick = () => {
+    if (busy) return;
+    if (!clearArmed) { clearArmed = true; $('clearBtn').textContent = '確定清空？'; setTimeout(() => { clearArmed = false; $('clearBtn').textContent = '清空'; }, 3000); return; }
+    clearArmed = false; $('clearBtn').textContent = '清空';
+    log = []; saveLog(); render();
+  };
+  $('exportBtn').onclick = () => {
+    if (!log.length) return;
+    const txt = log.map(e => `【${nameOf(e.who)}】\n${e.text}`).join('\n\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
+    a.download = '對談紀錄-' + new Date().toISOString().slice(0, 10) + '.txt';
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  const dlg = $('settings');
+  const fields = ['claudeKey', 'claudeModel', 'claudeName', 'gptKey', 'gptModel', 'gptName', 'rules'];
+  $('settingsBtn').onclick = () => { fields.forEach(f => $(f).value = cfg[f] || ''); dlg.showModal(); };
+  $('cancelSettings').onclick = () => dlg.close();
+  $('settingsForm').addEventListener('submit', () => {
+    fields.forEach(f => cfg[f] = $(f).value.trim());
+    if (!cfg.claudeModel) cfg.claudeModel = defaults.claudeModel;
+    if (!cfg.gptModel) cfg.gptModel = defaults.gptModel;
+    saveCfg(); render();
+  });
+
+  render();
+  if (!cfg.claudeKey || !cfg.gptKey) setTimeout(() => $('settingsBtn').click(), 300);
+})();
+</script>
+</body>
+</html>
